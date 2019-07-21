@@ -1,0 +1,10 @@
+# Source and compiled code.
+*.as
+*.elf
+*.hex
+*.lst
+*.o
+
+# Other.
+*.log
+*.swp

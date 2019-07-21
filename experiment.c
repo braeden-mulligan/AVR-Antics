@@ -1,7 +1,7 @@
 /*
 Author: Braeden Mulligan
-
 */
+
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <util/delay.h>
@@ -9,10 +9,9 @@ Author: Braeden Mulligan
 #define false 0
 #define true 1
 
-
 //--- 8 bit timer stuff for fast PWM.
-float duty_cycle = 0.5;
-float delta = 0.02;
+volatile float duty_cycle = 0.5;
+volatile float delta = 0.01;
 volatile char climb = true;
 ISR(TIMER0_OVF_vect) {
 	if (duty_cycle > (1.0 - delta)) climb = false;
@@ -22,7 +21,7 @@ ISR(TIMER0_OVF_vect) {
 	} else {
 		duty_cycle -= delta;
 	};
-	OCR0A = (char) (duty_cycle * 255); 
+	OCR0A = (char) (duty_cycle * 100); 
 }
 
 char pwm_on = false;
@@ -30,12 +29,13 @@ void PWM_init() {
 	DDRD |= (1 << PORTD6);
 	TCCR0A = (1 << COM0A1) | (1 << WGM00) | (1 << WGM01);
 	TIMSK0 = (1 << TOIE0); // Timer mask - type of interrupt.
-	OCR0A = (char) duty_cycle * 255; 
+	OCR0A = (char) (duty_cycle * 255.0); 
 	sei();
 	TCCR0B = (1 << CS00) | (1 << CS02); // Prescale 1.
 	pwm_on = true;
 }
 
+/*
 void PWM_halt() {
 	TCCR0B = 0;
 	TCCR0A = 0;
@@ -55,14 +55,6 @@ void PWM_restart() {
 	pwm_on = true;
 }
 //---
-		
-
-//--- ADC Shit. Depend on PWM.
-void ADC_init() {
-}
-// potentiometer for delta magnitude
-//---
-
 
 //--- General 16 bit Timer.
 // Setting prescaler starts timer.
@@ -98,7 +90,30 @@ inline void PWM_toggle() { //TODO: See if inlining improves performance.
 	};
 }
 //---
+*/
 
+//--- Analogue to Digital.
+void ADC_convert() {
+	ADCSRA |= (1 << ADSC);
+}
+
+void ADC_init() {
+	ADMUX = (1 << REFS0) | (1 << MUX0) | (1 << MUX2);
+	// Clock scaling for ADC
+	ADCSRA = (1 << ADEN) | (1 << ADIE); 
+	// Trigger interrupt upon conversion.
+	ADCSRA |= (1 << ADPS0) | (1 << ADPS1) | (1 << ADPS2);
+	DIDR0 = (1 << ADC5D);
+
+	ADC_convert();
+}
+
+ISR(ADC_vect) {
+	delta = 0.5 * ((float) ADC / 1024.0);
+	ADC_convert();
+}
+// potentiometer for delta magnitude
+//---
 
 //--- External interrupt stuff.
 /*
@@ -119,9 +134,8 @@ void button_toggle() {
 		PORTB |= (1 << PORTB5);
 	};
 }
-//---
 */
-
+//---
 
 int main(void) {
 	// Initialize internal LED off.
@@ -133,12 +147,12 @@ int main(void) {
 	PORTB |= _BV(DDB0);
 
 	PWM_init();	
-	TIMER_init();
+	ADC_init();
+	//TIMER_init();
 	//EXT_init();
-	//ADC_init();
 
 	while (true) {
-		PWM_toggle();
+		//PWM_toggle();
 	}
 } // END MAIN
 
