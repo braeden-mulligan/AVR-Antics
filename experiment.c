@@ -10,8 +10,11 @@ Author: Braeden Mulligan
 #define true 1
 
 //--- 8 bit timer stuff for fast PWM.
+#define cycle_max 167
+#define delta_min 0.006 // 1 / cycle_max
+
 volatile float duty_cycle = 0.5;
-volatile float delta = 0.01;
+volatile float delta = delta_min; 
 volatile char climb = true;
 ISR(TIMER0_OVF_vect) {
 	if (duty_cycle > (1.0 - delta)) climb = false;
@@ -21,7 +24,7 @@ ISR(TIMER0_OVF_vect) {
 	} else {
 		duty_cycle -= delta;
 	};
-	OCR0A = (char) (duty_cycle * 100); 
+	OCR0A = (char) (duty_cycle * cycle_max); 
 }
 
 char pwm_on = false;
@@ -35,7 +38,6 @@ void PWM_init() {
 	pwm_on = true;
 }
 
-/*
 void PWM_halt() {
 	TCCR0B = 0;
 	TCCR0A = 0;
@@ -90,29 +92,25 @@ inline void PWM_toggle() { //TODO: See if inlining improves performance.
 	};
 }
 //---
-*/
 
 //--- Analogue to Digital.
+// Potentiometer controls delta magnitude.
 void ADC_convert() {
 	ADCSRA |= (1 << ADSC);
 }
 
 void ADC_init() {
 	ADMUX = (1 << REFS0) | (1 << MUX0) | (1 << MUX2);
-	// Clock scaling for ADC
-	ADCSRA = (1 << ADEN) | (1 << ADIE); 
-	// Trigger interrupt upon conversion.
-	ADCSRA |= (1 << ADPS0) | (1 << ADPS1) | (1 << ADPS2);
+	ADCSRA = (1 << ADEN) | (1 << ADIE); // Clock scaling for ADC
+	ADCSRA |= (1 << ADPS0) | (1 << ADPS1) | (1 << ADPS2); // Trigger interrupt upon conversion.
 	DIDR0 = (1 << ADC5D);
 
 	ADC_convert();
 }
 
 ISR(ADC_vect) {
-	delta = 0.5 * ((float) ADC / 1024.0);
-	ADC_convert();
+	delta = delta_min + (0.33 * ( (float) ADC / 1024.0));
 }
-// potentiometer for delta magnitude
 //---
 
 //--- External interrupt stuff.
@@ -147,12 +145,13 @@ int main(void) {
 	PORTB |= _BV(DDB0);
 
 	PWM_init();	
+	TIMER_init();
 	ADC_init();
-	//TIMER_init();
 	//EXT_init();
 
 	while (true) {
-		//PWM_toggle();
+		PWM_toggle();
+		ADC_convert();
 	}
 } // END MAIN
 
