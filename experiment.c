@@ -12,7 +12,7 @@ Author: Braeden Mulligan
 //--- 8 bit timer stuff for fast PWM.
 #define cycle_max 167
 #define delta_min 0.006 // 1 / cycle_max
-
+// Dimming "blink" the external LED.
 volatile float duty_cycle = 0.5;
 volatile float delta = delta_min; 
 volatile char climb = true;
@@ -155,3 +155,4 @@ int main(void) {
 	}
 } // END MAIN
 
+//TODO: blink speed based on temperature?

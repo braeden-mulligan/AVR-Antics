@@ -6,5 +6,6 @@
 *.o
 
 # Other.
+*.fzz
 *.log
 *.swp
