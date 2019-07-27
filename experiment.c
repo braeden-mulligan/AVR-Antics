@@ -9,6 +9,42 @@ Author: Braeden Mulligan
 #define false 0
 #define true 1
 
+//--- Serial Communication.
+#define BAUD 9600
+#define BRC ((F_CPU / 16 / BAUD) - 1)
+#define UART_BUFFER_SIZE 64
+void UART_init() {
+	UBRR0H = (BRC >> 8);
+	UBRR0L = BRC;
+	UCSR0B = (1 << TXEN0) | (1 << TXCIE0);
+	UCSR0C = (1 << UCSZ00) | (1 << UCSZ01);
+}
+
+//char tx_buffer[UART_BUFFER_SIZE];
+
+void UART_transmit(char data) {
+	UDR0 = data;
+}
+
+void UART_write(char* data) {
+	char letter = (*data);
+	while (letter != '\0') {
+		UART_transmit(letter);
+		++data;
+		letter = (*data);
+	};
+	UART_transmit(' ');
+	UART_transmit('\n');
+}
+
+/*
+ISR(USART_TX_vect) {
+	if (
+		UDR0
+}
+*/
+//---
+
 //--- 8 bit timer stuff for fast PWM.
 #define cycle_max 167
 #define delta_min 0.006 // 1 / cycle_max
@@ -46,6 +82,8 @@ void PWM_halt() {
 
 	PORTB |= _BV(DDB5);
 	pwm_on = false;
+	char* message = "off";
+	UART_write(message);
 }
 
 void PWM_restart() {
@@ -148,6 +186,7 @@ int main(void) {
 	TIMER_init();
 	ADC_init();
 	//EXT_init();
+	UART_init();
 
 	while (true) {
 		PWM_toggle();
@@ -155,4 +194,3 @@ int main(void) {
 	}
 } // END MAIN
 
-//TODO: blink speed based on temperature?
