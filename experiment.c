@@ -11,30 +11,67 @@ Author: Braeden Mulligan
 
 //--- Serial Communication.
 #define BAUD 9600
-#define BRC ((F_CPU / 16 / BAUD) - 1)
+#define BAUD_EQ (F_CPU / 16 / BAUD - 1)
 #define UART_BUFFER_SIZE 64
 void UART_init() {
-	UBRR0H = (BRC >> 8);
-	UBRR0L = BRC;
-	UCSR0B = (1 << TXEN0) | (1 << TXCIE0);
+	UBRR0H = (BAUD_EQ >> 8);
+	UBRR0L = BAUD_EQ;
+	UCSR0B = (1 << TXEN0);
 	UCSR0C = (1 << UCSZ00) | (1 << UCSZ01);
 }
 
-//char tx_buffer[UART_BUFFER_SIZE];
+char tx_buffer[UART_BUFFER_SIZE];
+uint8_t tx_cursor_send = 0;
+uint8_t tx_cursor_put = 0;
+
+// return 1 if buffer is about to be overwritten.
+uint8_t tx_buffer_append(char c) {
+	//if (tx_cursor_put >= UART_BUFFER_SIZE) tx_cursor_put = 0;
+	tx_cursor_put %= UART_BUFFER_SIZE;
+	tx_buffer[tx_cursor_put] = c;
+	++tx_cursor_put;
+	if (tx_cursor_put == tx_cursor_send) return 1;
+	return 0;
+}
 
 void UART_transmit(char data) {
+	while (!(UCSR0A & (1 << UDRE0))) {} //TODO: What is this doing?
 	UDR0 = data;
 }
 
-void UART_write(char* data) {
-	char letter = (*data);
-	while (letter != '\0') {
-		UART_transmit(letter);
-		++data;
-		letter = (*data);
-	};
-	UART_transmit(' ');
-	UART_transmit('\n');
+void UART_write() {
+	do { 
+		UART_transmit(tx_buffer[tx_cursor_send]);
+		++tx_cursor_send;
+		tx_cursor_send %= UART_BUFFER_SIZE;
+	}while (tx_cursor_send != tx_cursor_put);
+}
+
+void serial_flush() {
+	for (uint8_t i = 0; i < UART_BUFFER_SIZE; ++i) {
+		UART_transmit(tx_buffer[i]);
+	}
+	tx_cursor_send = 0;
+	tx_cursor_put = 0;
+}
+
+// Check for buffer overflow; debugging option.
+void serial_write(char* text) {
+	uint8_t i = 0;
+	while (text[i] != '\0') {
+		if (tx_buffer_append(text[i]) && text[i + 1] != '\0') {
+			serial_flush();
+			UART_transmit('\n'); UART_transmit('\r');
+			char error[UART_BUFFER_SIZE] = "ERROR: Buffer overflow.\n\r";
+			for (uint8_t i = 0; i < (UART_BUFFER_SIZE - 1); ++i) { //TODO: whytf does this loop forever without -1.
+				tx_buffer_append(error[i]);
+			}
+			//UART_write();
+			break;
+		};
+		++i;
+	}
+	UART_write();
 }
 
 /*
@@ -82,8 +119,8 @@ void PWM_halt() {
 
 	PORTB |= _BV(DDB5);
 	pwm_on = false;
-	char* message = "off";
-	UART_write(message);
+	char* message = "off\n\r";
+	serial_write(message);
 }
 
 void PWM_restart() {
@@ -93,6 +130,9 @@ void PWM_restart() {
 	TIMSK0 = (1 << TOIE0); 
 	TCCR0B = (1 << CS00) | (1 << CS02);
 	pwm_on = true;
+	//char* message = "on\n";
+	char* message = "big long string that is sure to overflow the buffer of teeny 64 bytes\n\r";
+	serial_write(message);
 }
 //---
 

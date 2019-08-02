@@ -1,6 +1,6 @@
 CRUFT = *.elf *.hex *.lst *.o *.as
 
-all: experiment upload
+all: clean experiment upload
 
 experiment:
 	avr-gcc -std=c99 -Os -DF_CPU=16000000UL -mmcu=atmega328p -c -o experiment.o experiment.c
