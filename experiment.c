@@ -2,12 +2,11 @@
 Author: Braeden Mulligan
 */
 
+#include <stdbool.h>
+
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <util/delay.h>
-
-#define false 0
-#define true 1
 
 //--- Serial Communication.
 #define BAUD 9600
@@ -24,14 +23,14 @@ char tx_buffer[UART_BUFFER_SIZE];
 uint8_t tx_cursor_send = 0;
 uint8_t tx_cursor_put = 0;
 
-// return 1 if buffer is about to be overwritten next call.
-uint8_t tx_buffer_append(char c) {
+// return true if buffer is about to be overwritten next call.
+bool tx_buffer_append(char c) {
 	//if (tx_cursor_put >= UART_BUFFER_SIZE) tx_cursor_put = 0;
 	tx_cursor_put %= UART_BUFFER_SIZE;
 	tx_buffer[tx_cursor_put] = c;
 	++tx_cursor_put;
-	if (tx_cursor_put == tx_cursor_send) return 1;
-	return 0;
+	if (tx_cursor_put == tx_cursor_send) return true;
+	return false;
 }
 
 void UART_transmit(char byte) {
@@ -51,7 +50,7 @@ void UART_write() {
 // Checks long strings for buffer overflow. 
 void serial_write(char* text) {
 	uint8_t i = 0;
-	uint8_t warning = false;
+	bool warning = false;
 	while (text[i] != '\0') {
 		if (warning) { 
 			UART_write();
@@ -68,13 +67,6 @@ void serial_write(char* text) {
 	}
 	UART_write();
 }
-
-/*
-ISR(USART_TX_vect) {
-	if (
-		UDR0
-}
-*/
 //---
 
 //--- 8 bit timer stuff for fast PWM.
@@ -83,7 +75,7 @@ ISR(USART_TX_vect) {
 // Dimming "blink" the external LED.
 volatile float duty_cycle = 0.5;
 volatile float delta = delta_min; 
-volatile char climb = true;
+volatile bool climb = true;
 ISR(TIMER0_OVF_vect) {
 	if (duty_cycle > (1.0 - delta)) climb = false;
 	if (duty_cycle < delta) climb = true;
@@ -92,15 +84,15 @@ ISR(TIMER0_OVF_vect) {
 	} else {
 		duty_cycle -= delta;
 	};
-	OCR0A = (char) (duty_cycle * cycle_max); 
+	OCR0A = (uint8_t) (duty_cycle * cycle_max); 
 }
 
-char pwm_on = false;
+bool pwm_on = false;
 void PWM_init() {
 	DDRD |= (1 << PORTD6);
 	TCCR0A = (1 << COM0A1) | (1 << WGM00) | (1 << WGM01);
 	TIMSK0 = (1 << TOIE0); // Timer mask - type of interrupt.
-	OCR0A = (char) (duty_cycle * 255.0); 
+	OCR0A = (uint8_t) (duty_cycle * 255.0); 
 	sei();
 	TCCR0B = (1 << CS00) | (1 << CS02); // Prescale 1.
 	pwm_on = true;
@@ -140,8 +132,8 @@ void TIMER_init() {
 	TCCR1B |= (1 << CS10) | (1 << CS12); // Prescalar 1024
 }
 
-volatile char pressed = false;
-volatile char held = false;
+volatile bool pressed = false;
+volatile bool held = false;
 ISR(TIMER1_COMPA_vect) {
 	if (!(PINB & _BV(DDB0))) {
 		if (!held) {
@@ -153,7 +145,7 @@ ISR(TIMER1_COMPA_vect) {
 	};
 }
 
-inline void PWM_toggle() { //TODO: See if inlining improves performance.
+inline void PWM_toggle() { //TODO: Would inlining improves performance.
 	if (pressed) {
 		pressed = false;
 		if (pwm_on) {
@@ -222,6 +214,7 @@ int main(void) {
 	//EXT_init();
 	UART_init();
 
+	
 	while (true) {
 		PWM_toggle();
 		ADC_convert();
