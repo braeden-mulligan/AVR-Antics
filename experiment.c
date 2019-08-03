@@ -69,7 +69,7 @@ void serial_write(char* text) {
 }
 //---
 
-//--- 8 bit timer stuff for fast PWM.
+//--- 8 bit timer stuff for ATmega328p fast PWM.
 #define cycle_max 167
 #define delta_min 0.006 // 1 / cycle_max
 // Dimming "blink" the external LED.
@@ -88,37 +88,30 @@ ISR(TIMER0_OVF_vect) {
 }
 
 bool pwm_on = false;
-void PWM_init() {
-	DDRD |= (1 << PORTD6);
+void PWM_start(bool init) {
+	if (init) {
+		DDRD |= (1 << PORTD6);
+		OCR0A = (uint8_t) (duty_cycle * 255.0); 
+		sei();
+	}else {
+		PORTB &= ~_BV(DDB5);
+		serial_write("on\n\r");
+	};
 	TCCR0A = (1 << COM0A1) | (1 << WGM00) | (1 << WGM01);
 	TIMSK0 = (1 << TOIE0); // Timer mask - type of interrupt.
-	OCR0A = (uint8_t) (duty_cycle * 255.0); 
-	sei();
 	TCCR0B = (1 << CS00) | (1 << CS02); // Prescale 1.
 	pwm_on = true;
 }
 
 void PWM_halt() {
-	TCCR0B = 0;
 	TCCR0A = 0;
 	TIMSK0 = 0; 
+	TCCR0B = 0;
 	PORTD &= ~_BV(DDD6);
 
 	PORTB |= _BV(DDB5);
 	pwm_on = false;
-	//char* message = "off\n\r";
 	serial_write("off\n\r");
-}
-
-void PWM_restart() {
-	PORTB &= ~_BV(DDB5);
-
-	TCCR0A = (1 << COM0A1) | (1 << WGM00) | (1 << WGM01);
-	TIMSK0 = (1 << TOIE0); 
-	TCCR0B = (1 << CS00) | (1 << CS02);
-	pwm_on = true;
-	//serial_write("big long string that is sure to overflow the buffer of a tiny 64 bytes\n\r");
-	serial_write("on\n\r");
 }
 //---
 
@@ -145,13 +138,13 @@ ISR(TIMER1_COMPA_vect) {
 	};
 }
 
-inline void PWM_toggle() { //TODO: Would inlining improves performance.
+inline void PWM_toggle() { //TODO: Would inlining improve performance.
 	if (pressed) {
 		pressed = false;
 		if (pwm_on) {
 			PWM_halt();
 		}else {
-			PWM_restart();
+			PWM_start(false);
 		};
 	};
 }
@@ -208,13 +201,12 @@ int main(void) {
 	DDRB &= ~_BV(DDB0);
 	PORTB |= _BV(DDB0);
 
-	PWM_init();	
+	PWM_start(true);	
 	TIMER_init();
 	ADC_init();
 	//EXT_init();
 	UART_init();
 
-	
 	while (true) {
 		PWM_toggle();
 		ADC_convert();
