@@ -24,7 +24,7 @@ char tx_buffer[UART_BUFFER_SIZE];
 uint8_t tx_cursor_send = 0;
 uint8_t tx_cursor_put = 0;
 
-// return 1 if buffer is about to be overwritten.
+// return 1 if buffer is about to be overwritten next call.
 uint8_t tx_buffer_append(char c) {
 	//if (tx_cursor_put >= UART_BUFFER_SIZE) tx_cursor_put = 0;
 	tx_cursor_put %= UART_BUFFER_SIZE;
@@ -34,9 +34,9 @@ uint8_t tx_buffer_append(char c) {
 	return 0;
 }
 
-void UART_transmit(char data) {
-	while (!(UCSR0A & (1 << UDRE0))) {} //TODO: What is this doing?
-	UDR0 = data;
+void UART_transmit(char byte) {
+	while (!(UCSR0A & (1 << UDRE0))) {}
+	UDR0 = byte;
 }
 
 void UART_write() {
@@ -47,28 +47,23 @@ void UART_write() {
 	}while (tx_cursor_send != tx_cursor_put);
 }
 
-void serial_flush() {
-	for (uint8_t i = 0; i < UART_BUFFER_SIZE; ++i) {
-		UART_transmit(tx_buffer[i]);
-	}
-	tx_cursor_send = 0;
-	tx_cursor_put = 0;
-}
-
-// Check for buffer overflow; debugging option.
+// Call this function as wrapper for sending serial data.
+// Checks long strings for buffer overflow. 
 void serial_write(char* text) {
 	uint8_t i = 0;
+	uint8_t warning = false;
 	while (text[i] != '\0') {
-		if (tx_buffer_append(text[i]) && text[i + 1] != '\0') {
-			serial_flush();
+		if (warning) { 
+			UART_write();
 			UART_transmit('\n'); UART_transmit('\r');
 			char error[UART_BUFFER_SIZE] = "ERROR: Buffer overflow.\n\r";
-			for (uint8_t i = 0; i < (UART_BUFFER_SIZE - 1); ++i) { //TODO: whytf does this loop forever without -1.
-				tx_buffer_append(error[i]);
+			for (uint8_t j = 0; j < UART_BUFFER_SIZE; ++j) {
+				tx_buffer_append(error[j]);
 			}
-			//UART_write();
-			break;
+			UART_write();
+			return;
 		};
+		warning = tx_buffer_append(text[i]);
 		++i;
 	}
 	UART_write();
@@ -119,8 +114,8 @@ void PWM_halt() {
 
 	PORTB |= _BV(DDB5);
 	pwm_on = false;
-	char* message = "off\n\r";
-	serial_write(message);
+	//char* message = "off\n\r";
+	serial_write("off\n\r");
 }
 
 void PWM_restart() {
@@ -130,9 +125,8 @@ void PWM_restart() {
 	TIMSK0 = (1 << TOIE0); 
 	TCCR0B = (1 << CS00) | (1 << CS02);
 	pwm_on = true;
-	//char* message = "on\n";
-	char* message = "big long string that is sure to overflow the buffer of teeny 64 bytes\n\r";
-	serial_write(message);
+	//serial_write("big long string that is sure to overflow the buffer of a tiny 64 bytes\n\r");
+	serial_write("on\n\r");
 }
 //---
 
